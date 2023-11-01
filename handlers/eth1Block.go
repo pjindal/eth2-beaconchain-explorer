@@ -194,13 +194,18 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 			}
 		}
 
+		isContractInteraction := false
+		if len(txIsContractList) > i {
+			isContractInteraction = txIsContractList[i] != types.CONTRACT_NONE
+		}
+
 		txs = append(txs, types.Eth1BlockPageTransaction{
 			Hash:          fmt.Sprintf("%#x", tx.Hash),
 			HashFormatted: utils.FormatTransactionHash(tx.Hash, tx.ErrorMsg == ""),
 			From:          fmt.Sprintf("%#x", tx.From),
 			FromFormatted: utils.FormatAddressWithLimits(tx.From, names[string(tx.From)], false, "address", 15, 20, true),
 			To:            fmt.Sprintf("%#x", tx.To),
-			ToFormatted:   utils.FormatAddressWithLimits(tx.To, names[string(tx.To)], txIsContractList[i], "address", 15, 20, true),
+			ToFormatted:   utils.FormatAddressWithLimits(tx.To, names[string(tx.To)], isContractInteraction, "address", 15, 20, true),
 			Value:         new(big.Int).SetBytes(tx.Value),
 			Fee:           txFee,
 			GasPrice:      effectiveGasPrice,
