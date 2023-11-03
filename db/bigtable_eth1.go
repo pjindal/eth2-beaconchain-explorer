@@ -550,8 +550,12 @@ func (bigtable *Bigtable) GetBlocksDescending(start, limit uint64) ([]*types.Eth
 	})
 	defer tmr.Stop()
 
-	if start < 1 || limit < 1 || limit > start {
+	if start < 1 || limit < 1 {
 		return nil, fmt.Errorf("invalid block range provided (start: %v, limit: %v)", start, limit)
+	}
+
+	if limit > start {
+		limit = start
 	}
 
 	startPadded := reversedPaddedBlockNumber(start)
