@@ -2134,7 +2134,8 @@ func (bigtable *Bigtable) GetAddressTransactionsTableData(address []byte, search
 	}
 
 	tableData := make([][]interface{}, len(transactions))
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
 
@@ -2434,7 +2435,8 @@ func (bigtable *Bigtable) GetAddressBlobTableData(address []byte, search string,
 	}
 
 	tableData := make([][]interface{}, len(transactions))
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
@@ -2557,7 +2559,8 @@ func (bigtable *Bigtable) GetAddressInternalTableData(address []byte, search str
 	}
 
 	tableData := make([][]interface{}, len(transactions))
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
@@ -2877,7 +2880,8 @@ func (bigtable *Bigtable) GetAddressErc20TableData(address []byte, search string
 
 	tableData := make([][]interface{}, len(transactions))
 
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
@@ -3003,7 +3007,8 @@ func (bigtable *Bigtable) GetAddressErc721TableData(address string, search strin
 	}
 
 	tableData := make([][]interface{}, len(transactions))
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
 		from := utils.FormatAddress(t.From, t.TokenAddress, fromName, false, false, fmt.Sprintf("%x", t.From) != address)
@@ -3117,7 +3122,8 @@ func (bigtable *Bigtable) GetAddressErc1155TableData(address string, search stri
 		return nil, err
 	}
 
-	for i, t := range transactions {
+	for i := len(transactions) - 1; i >= 0; i-- {
+		t := transactions[i]
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
 		from := utils.FormatAddress(t.From, t.TokenAddress, fromName, false, false, fmt.Sprintf("%x", t.From) != address)
