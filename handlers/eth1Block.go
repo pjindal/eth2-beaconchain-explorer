@@ -153,7 +153,7 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 	blobTxCount := 0
 	blobCount := 0
 
-	txIsContractList, err := db.BigtableClient.GetAddressIsContractAtBlock(block)
+	txIsContractList, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(block)
 	if err != nil {
 		utils.LogError(err, "error getting contract states", 0)
 	}
@@ -193,9 +193,9 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 			}
 		}
 
-		var isContractInteraction types.ContractInteractionType
+		var contractInteraction types.ContractInteractionType
 		if len(txIsContractList) > i {
-			isContractInteraction = txIsContractList[i]
+			contractInteraction = txIsContractList[i]
 		}
 
 		txs = append(txs, types.Eth1BlockPageTransaction{
@@ -204,7 +204,7 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 			From:          fmt.Sprintf("%#x", tx.From),
 			FromFormatted: utils.FormatAddressWithLimits(tx.From, names[string(tx.From)], false, "address", 15, 20, true),
 			To:            fmt.Sprintf("%#x", tx.To),
-			ToFormatted:   utils.FormatAddressWithLimits(tx.To, db.BigtableClient.GetAddressLabel(names[string(tx.To)], isContractInteraction), isContractInteraction != types.CONTRACT_NONE, "address", 15, 20, true),
+			ToFormatted:   utils.FormatAddressWithLimits(tx.To, db.BigtableClient.GetAddressLabel(names[string(tx.To)], contractInteraction), contractInteraction != types.CONTRACT_NONE, "address", 15, 20, true),
 			Value:         new(big.Int).SetBytes(tx.Value),
 			Fee:           txFee,
 			GasPrice:      effectiveGasPrice,

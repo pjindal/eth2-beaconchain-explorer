@@ -67,7 +67,7 @@ func getTransactionDataStartingWithPageToken(pageToken string) *types.DataTableR
 			return nil
 		}
 		t := b.GetTransactions()
-		txIsContractList, err := db.BigtableClient.GetAddressIsContractAtBlock(b)
+		txIsContractList, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(b)
 		if err != nil {
 			utils.LogError(err, "error getting contract states", 0)
 		}
@@ -101,9 +101,9 @@ func getTransactionDataStartingWithPageToken(pageToken string) *types.DataTableR
 				if v.GetTo() == nil {
 					v.To = v.ContractAddress
 				}
-				var isContractInteraction types.ContractInteractionType
+				var contractInteraction types.ContractInteractionType
 				if len(txIsContractList) > i {
-					isContractInteraction = txIsContractList[i]
+					contractInteraction = txIsContractList[i]
 				}
 				tableData = append(tableData, []interface{}{
 					utils.FormatAddressWithLimits(v.GetHash(), "", false, "tx", visibleDigitsForHash+5, 18, true),
@@ -111,7 +111,7 @@ func getTransactionDataStartingWithPageToken(pageToken string) *types.DataTableR
 					template.HTML(fmt.Sprintf(`<A href="block/%d">%v</A>`, b.GetNumber(), utils.FormatAddCommas(b.GetNumber()))),
 					utils.FormatTimestamp(b.GetTime().AsTime().Unix()),
 					utils.FormatAddressWithLimits(v.GetFrom(), names[string(v.GetFrom())], false, "address", visibleDigitsForHash+5, 18, true),
-					utils.FormatAddressWithLimits(v.GetTo(), db.BigtableClient.GetAddressLabel(names[string(v.GetTo())], isContractInteraction), isContractInteraction != types.CONTRACT_NONE, "address", 15, 20, true),
+					utils.FormatAddressWithLimits(v.GetTo(), db.BigtableClient.GetAddressLabel(names[string(v.GetTo())], contractInteraction), contractInteraction != types.CONTRACT_NONE, "address", 15, 20, true),
 					utils.FormatAmountFormatted(new(big.Int).SetBytes(v.GetValue()), utils.Config.Frontend.ElCurrency, 8, 4, true, true, false),
 					utils.FormatAmountFormatted(db.CalculateTxFeeFromTransaction(v, new(big.Int).SetBytes(b.GetBaseFee())), utils.Config.Frontend.ElCurrency, 8, 4, true, true, false),
 				})
