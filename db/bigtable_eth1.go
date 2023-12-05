@@ -1291,7 +1291,7 @@ func (bigtable *Bigtable) TransformItx(blk *types.Eth1Block, cache *freecache.Ca
 		}
 	}
 
-	err = bigtable.WriteBulk(ContractUpdateWrites, bigtable.tableMetadata)
+	err = bigtable.WriteBulk(ContractUpdateWrites, bigtable.tableMetadata, DEFAULT_BATCH_INSERTS)
 	return bulkData, bulkMetadataUpdates, err
 }
 
@@ -2118,10 +2118,6 @@ func (bigtable *Bigtable) GetAddressTransactionsTableData(address []byte, pageTo
 		if len(txIsContractList) > i {
 			contractInteraction = txIsContractList[i]
 		}
-
-		from := utils.FormatAddress(t.From, nil, fromName, false, false, !bytes.Equal(t.From, address))
-		to := utils.FormatAddress(t.To, nil, BigtableClient.GetAddressLabel(names[string(t.To)], contractInteraction), false, contractInteraction != types.CONTRACT_NONE, !bytes.Equal(t.To, address))
-
 		method := bigtable.GetMethodLabel(t.MethodId, contractInteraction != types.CONTRACT_NONE)
 
 		tableData[i] = []interface{}{
@@ -2131,7 +2127,7 @@ func (bigtable *Bigtable) GetAddressTransactionsTableData(address []byte, pageTo
 			utils.FormatTimestamp(t.Time.AsTime().Unix()),
 			utils.FormatAddressWithLimitsInAddressPageTable(address, t.From, fromName, false, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
 			utils.FormatInOutSelf(address, t.From, t.To),
-			utils.FormatAddressWithLimitsInAddressPageTable(address, t.To, toName, false, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
+			utils.FormatAddressWithLimitsInAddressPageTable(address, t.To, BigtableClient.GetAddressLabel(names[string(t.To)], contractInteraction), contractInteraction != types.CONTRACT_NONE, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
 			utils.FormatAmount(new(big.Int).SetBytes(t.Value), utils.Config.Frontend.ElCurrency, 6),
 		}
 	}
@@ -2583,16 +2579,13 @@ func (bigtable *Bigtable) GetAddressInternalTableData(address []byte, pageToken 
 			to_contractInteraction = txIsContractList[i][1]
 		}
 
-		from := utils.FormatAddress(t.From, nil, BigtableClient.GetAddressLabel(fromName, from_contractInteraction), false, from_contractInteraction != types.CONTRACT_NONE, !bytes.Equal(t.From, address))
-		to := utils.FormatAddress(t.To, nil, BigtableClient.GetAddressLabel(toName, to_contractInteraction), false, to_contractInteraction != types.CONTRACT_NONE, !bytes.Equal(t.To, address))
-
 		tableData[i] = []interface{}{
 			utils.FormatTransactionHash(t.ParentHash, true),
 			utils.FormatBlockNumber(t.BlockNumber),
 			utils.FormatTimestamp(t.Time.AsTime().Unix()),
-			utils.FormatAddressWithLimitsInAddressPageTable(address, t.From, fromName, false, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
+			utils.FormatAddressWithLimitsInAddressPageTable(address, t.From, BigtableClient.GetAddressLabel(fromName, from_contractInteraction), from_contractInteraction != types.CONTRACT_NONE, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
 			utils.FormatInOutSelf(address, t.From, t.To),
-			utils.FormatAddressWithLimitsInAddressPageTable(address, t.To, toName, false, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
+			utils.FormatAddressWithLimitsInAddressPageTable(address, t.To, BigtableClient.GetAddressLabel(toName, to_contractInteraction), to_contractInteraction != types.CONTRACT_NONE, digitLimitInAddressPagesTable, nameLimitInAddressPagesTable, true),
 			utils.FormatAmount(new(big.Int).SetBytes(t.Value), utils.Config.Frontend.ElCurrency, 6),
 			t.Type,
 		}
@@ -4021,7 +4014,7 @@ func (bigtable *Bigtable) GetBlockKeys(blockNumber uint64, blockHash []byte) ([]
 	}
 
 	if row == nil {
-		return nil, fmt.Errorf("keys for block %v not found", blockNumber)
+		return make([]string, 0), nil
 	}
 
 	return strings.Split(string(row[METADATA_UPDATES_FAMILY_BLOCKS][0].Value), ","), nil
@@ -4030,14 +4023,68 @@ func (bigtable *Bigtable) GetBlockKeys(blockNumber uint64, blockHash []byte) ([]
 // Deletes all block data from bigtable
 func (bigtable *Bigtable) DeleteBlock(blockNumber uint64, blockHash []byte) error {
 
-	// First receive all keys that were written by this block (entities & indices)
+	// handle contract state updates
+	starttime, err := encodeIsContractUpdateTs(blockNumber, 0, 0)
+	if err != nil {
+		return err
+	}
+	endtime, err := encodeIsContractUpdateTs(blockNumber+1, 0, 0)
+	if err != nil {
+		return err
+	}
+
+	filter := gcp_bigtable.ChainFilters(
+		gcp_bigtable.FamilyFilter(ACCOUNT_METADATA_FAMILY),
+		gcp_bigtable.ColumnFilter(ACCOUNT_IS_CONTRACT),
+		gcp_bigtable.TimestampRangeFilterMicros(starttime, endtime-1),
+	)
+
+	mutsDelete := &types.BulkMutations{
+		Keys: make([]string, 0),
+		Muts: make([]*gcp_bigtable.Mutation, 0),
+	}
+
+	tmr := time.AfterFunc(REPORT_TIMEOUT, func() {
+		logger.WithFields(logrus.Fields{
+			"blockNumber": blockNumber,
+		}).Warnf("%s call took longer than %v", utils.GetCurrentFuncName(), REPORT_TIMEOUT)
+	})
+	defer tmr.Stop()
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*30))
+	defer cancel()
+
+	err = bigtable.tableMetadata.ReadRows(ctx, gcp_bigtable.InfiniteRange(bigtable.chainId), func(row gcp_bigtable.Row) bool {
+		mutDelete := gcp_bigtable.NewMutation()
+		mutDelete.DeleteTimestampRange(ACCOUNT_METADATA_FAMILY, ACCOUNT_IS_CONTRACT, starttime, endtime)
+
+		mutsDelete.Keys = append(mutsDelete.Keys, row.Key())
+		mutsDelete.Muts = append(mutsDelete.Muts, mutDelete)
+		return true
+	}, gcp_bigtable.RowFilter(filter))
+	if err != nil {
+		return err
+	}
+
+	if len(mutsDelete.Keys) > 0 {
+		err = bigtable.WriteBulk(mutsDelete, bigtable.tableMetadata, DEFAULT_BATCH_INSERTS)
+		if err != nil {
+			return err
+		}
+	}
+
+	// receive all keys that were written by this block (entities & indices)
 	keys, err := bigtable.GetBlockKeys(blockNumber, blockHash)
 	if err != nil {
 		return err
 	}
 
+	if len(keys) == 0 {
+		return nil
+	}
+
 	// Delete all of those keys
-	mutsDelete := &types.BulkMutations{
+	mutsDelete = &types.BulkMutations{
 		Keys: make([]string, 0, len(keys)),
 		Muts: make([]*gcp_bigtable.Mutation, 0, len(keys)),
 	}
