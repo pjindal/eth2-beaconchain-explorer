@@ -2095,7 +2095,7 @@ func (bigtable *Bigtable) GetAddressTransactionsTableData(address []byte, pageTo
 		idxs[i] = int64(tx_idx)
 	}
 
-	txIsContractList, err := BigtableClient.GetAddressContractInteractionsAtTransactions(transactions, idxs)
+	contractInteractionTypes, err := BigtableClient.GetAddressContractInteractionsAtTransactions(transactions, idxs)
 	if err != nil {
 		utils.LogError(err, "error getting contract states", 0)
 	}
@@ -2115,8 +2115,8 @@ func (bigtable *Bigtable) GetAddressTransactionsTableData(address []byte, pageTo
 	for i, t := range transactions {
 		fromName := names[string(t.From)]
 		var contractInteraction types.ContractInteractionType
-		if len(txIsContractList) > i {
-			contractInteraction = txIsContractList[i]
+		if len(contractInteractionTypes) > i {
+			contractInteraction = contractInteractionTypes[i]
 		}
 		method := bigtable.GetMethodLabel(t.MethodId, contractInteraction != types.CONTRACT_NONE)
 
@@ -2449,7 +2449,7 @@ func (bigtable *Bigtable) GetAddressBlobTableData(address []byte, pageToken stri
 	return data, nil
 }
 
-func (bigtable *Bigtable) GetEth1ItxForAddress(prefix string, limit int64) ([]*types.Eth1InternalTransactionIndexed, []string, error) {
+func (bigtable *Bigtable) GetEth1ItxsForAddress(prefix string, limit int64) ([]*types.Eth1InternalTransactionIndexed, []string, error) {
 
 	tmr := time.AfterFunc(REPORT_TIMEOUT, func() {
 		logger.WithFields(logrus.Fields{
@@ -2526,13 +2526,13 @@ func (bigtable *Bigtable) GetAddressInternalTableData(address []byte, pageToken 
 		pageToken = fmt.Sprintf("%s:I:ITX:%x:%s:", bigtable.chainId, address, FILTER_TIME)
 	}
 
-	transactions, keys, err := bigtable.GetEth1ItxForAddress(pageToken, 25)
+	itransactions, keys, err := bigtable.GetEth1ItxsForAddress(pageToken, 25)
 	if err != nil {
 		return nil, err
 	}
 
 	names := make(map[string]string)
-	for _, t := range transactions {
+	for _, t := range itransactions {
 		names[string(t.From)] = ""
 		names[string(t.To)] = ""
 	}
@@ -2562,21 +2562,21 @@ func (bigtable *Bigtable) GetAddressInternalTableData(address []byte, pageToken 
 		}
 		idxs[i] = [2]int64{int64(tx_idx), int64(trace_idx)}
 	}
-	txIsContractList, err := BigtableClient.GetAddressContractInteractionsAtITransactions(transactions, idxs)
+	contractInteractionTypes, err := BigtableClient.GetAddressContractInteractionsAtITransactions(itransactions, idxs)
 	if err != nil {
 		utils.LogError(err, "error getting contract states", 0)
 	}
 
-	tableData := make([][]interface{}, len(transactions))
-	for i, t := range transactions {
+	tableData := make([][]interface{}, len(itransactions))
+	for i, t := range itransactions {
 
 		fromName := names[string(t.From)]
 		toName := names[string(t.To)]
 
 		var from_contractInteraction, to_contractInteraction types.ContractInteractionType
-		if len(txIsContractList) > i {
-			from_contractInteraction = txIsContractList[i][0]
-			to_contractInteraction = txIsContractList[i][1]
+		if len(contractInteractionTypes) > i {
+			from_contractInteraction = contractInteractionTypes[i][0]
+			to_contractInteraction = contractInteractionTypes[i][1]
 		}
 
 		tableData[i] = []interface{}{
@@ -2677,7 +2677,7 @@ func (bigtable *Bigtable) GetInternalTransfersForTransaction(transaction []byte,
 		idxs = append(idxs, [2]int64{int64(txIdx), int64(i)})
 	}
 
-	txIsContractList, err := BigtableClient.GetAddressContractInteractionsAtITransactions(itransactions, idxs)
+	contractInteractionTypes, err := BigtableClient.GetAddressContractInteractionsAtITransactions(itransactions, idxs)
 	if err != nil {
 		utils.LogError(err, "error getting contract states", 0)
 	}
@@ -2686,9 +2686,9 @@ func (bigtable *Bigtable) GetInternalTransfersForTransaction(transaction []byte,
 		t := transfers[k]
 
 		var from_contractInteraction, to_contractInteraction types.ContractInteractionType
-		if len(txIsContractList) > 0 {
-			from_contractInteraction = txIsContractList[i][0]
-			to_contractInteraction = txIsContractList[i][1]
+		if len(contractInteractionTypes) > 0 {
+			from_contractInteraction = contractInteractionTypes[i][0]
+			to_contractInteraction = contractInteractionTypes[i][1]
 		}
 
 		from := utils.FormatAddress(t.From, nil, BigtableClient.GetAddressLabel(names[string(t.From)], from_contractInteraction), false, from_contractInteraction != types.CONTRACT_NONE, true)
@@ -4077,10 +4077,6 @@ func (bigtable *Bigtable) DeleteBlock(blockNumber uint64, blockHash []byte) erro
 	keys, err := bigtable.GetBlockKeys(blockNumber, blockHash)
 	if err != nil {
 		return err
-	}
-
-	if len(keys) == 0 {
-		return nil
 	}
 
 	// Delete all of those keys

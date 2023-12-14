@@ -67,7 +67,7 @@ func getTransactionDataStartingWithPageToken(pageToken string) *types.DataTableR
 			return nil
 		}
 		t := b.GetTransactions()
-		txIsContractList, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(b)
+		contractInteractionTypes, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(b)
 		if err != nil {
 			utils.LogError(err, "error getting contract states", 0)
 		}
@@ -102,8 +102,8 @@ func getTransactionDataStartingWithPageToken(pageToken string) *types.DataTableR
 					v.To = v.ContractAddress
 				}
 				var contractInteraction types.ContractInteractionType
-				if len(txIsContractList) > i {
-					contractInteraction = txIsContractList[i]
+				if len(contractInteractionTypes) > i {
+					contractInteraction = contractInteractionTypes[i]
 				}
 				tableData = append(tableData, []interface{}{
 					utils.FormatAddressWithLimits(v.GetHash(), "", false, "tx", visibleDigitsForHash+5, 18, true),

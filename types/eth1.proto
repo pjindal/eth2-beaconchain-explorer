@@ -187,6 +187,8 @@ message Eth1InternalTransactionIndexed {
 
 // https://eips.ethereum.org/EIPS/eip-4844
 message Eth1BlobTransactionIndexed {
+    reserved 11; // invokes_contract
+    
     bytes hash = 1;
     uint64 block_number = 2;
     google.protobuf.Timestamp time = 3;
@@ -197,8 +199,7 @@ message Eth1BlobTransactionIndexed {
     bytes gas_price = 8;
     bytes blob_tx_fee = 9;
     bytes blob_gas_price = 10;
-    // invokes_contract is unused, should mark reserved!
-    bool invokes_contract = 11;
+
     string error_msg = 12;
     repeated bytes blob_versioned_hashes = 13;
 }

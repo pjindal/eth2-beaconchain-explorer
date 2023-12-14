@@ -153,7 +153,7 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 	blobTxCount := 0
 	blobCount := 0
 
-	txIsContractList, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(block)
+	contractInteractionTypes, err := db.BigtableClient.GetAddressContractInteractionsAtBlock(block)
 	if err != nil {
 		utils.LogError(err, "error getting contract states", 0)
 	}
@@ -194,8 +194,8 @@ func GetExecutionBlockPageData(number uint64, limit int) (*types.Eth1BlockPageDa
 		}
 
 		var contractInteraction types.ContractInteractionType
-		if len(txIsContractList) > i {
-			contractInteraction = txIsContractList[i]
+		if len(contractInteractionTypes) > i {
+			contractInteraction = contractInteractionTypes[i]
 		}
 
 		txs = append(txs, types.Eth1BlockPageTransaction{
